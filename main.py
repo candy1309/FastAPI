@@ -1,55 +1,53 @@
-from fastapi import FastAPI,HTTPException,Depends,Header
-from jose import jwt
-from datetime import datetime, timedelta, timezone
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.staticfiles import StaticFiles
+import os
+import shutil
 
 app = FastAPI()
 
-SECRET_KEY = "mysecret"
+#Step-1: Ensure uploads folder exist
 
-ALGORITHM = "HS256"
+UPLOAD_DIR = "uploads"
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
 
-#Create Token
-def create_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
-    to_encode.update({
-        "exp":expire
-    })
-    token = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+#STEP-2:Static file set-up
+#URL: HTTP://127.0.0.1:8080/FILES/<FILEnAME>
+app.mount("/files",StaticFiles(directory=UPLOAD_DIR), name="files")
 
-    return token
+#Step-3:Upload file api
+@app.post("/upload")
+def upload_file(file: UploadFile = File(...)):
+    filename = file.filename
+    file_path = os.path.join(UPLOAD_DIR,filename)
+    
+    if not filename:
+        raise HTTPException(status_code=400, detail="File not selected")
+    
+    with open(file_path,"wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
 
-#Login API(Token Genrate)
-@app.post("/login")
-def login(username:str,password:str):
-    if username != "admin" or password != "1234":
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid Username and password"
-        )
-    token = create_token({
-        "sub":username
-    })
+        return{
+            "message":"File Uploaded successfully",
+            "fileName":filename,
+            "file_url": f"http://127.0.0.1:8000/files/{filename}"
+        }
+    
+#Step-4:Get File URL API
+
+@app.get("/files/{filename}")
+def get_file(filename:str):
+    file_path = os.path.join(UPLOAD_DIR,filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    
     return{
-        "access_token": token
+        "file_url":f"http://127.0.0.1:8000/files/{filename}"
     }
 
-#Token Varify
-def varify_token(token: str = Header(None)):
-    
-    try:
-        payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
-        return payload
-    except:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired Token"
-        )
-    
-#protected Route
-@app.get("/secure")
-def secure_data(user = Depends(varify_token)):
+@app.get("/")
+def home():
     return{
-        "message":"Secure Data Accessed",
-        "user":user
+        "message":"File Uploaded api Running"
     }
