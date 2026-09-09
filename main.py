@@ -1,55 +1,28 @@
-from fastapi import FastAPI,HTTPException,Depends,Header
-from jose import jwt
-from datetime import datetime, timedelta, timezone
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+# import os
+# from dotenv import load_dotenv
+from config import settings
 
 app = FastAPI()
 
-SECRET_KEY = "mysecret"
+# load_dotenv()
 
-ALGORITHM = "HS256"
+#Allowed Origins(Front-end URl)
+origins = settings.origins
+# SECRET_KEY= os.getenv("SECRET_KEY")
+# DB_URL = os.getenv("DB_URL")
 
-#Create Token
-def create_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
-    to_encode.update({
-        "exp":expire
-    })
-    token = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins = origins, #allowed FE
+    allow_credentials = True,
+    allow_methods = ["*"], #GET,PUT,POST,DELETE
+    allow_headers=["*"]
+)
 
-    return token
-
-#Login API(Token Genrate)
-@app.post("/login")
-def login(username:str,password:str):
-    if username != "admin" or password != "1234":
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid Username and password"
-        )
-    token = create_token({
-        "sub":username
-    })
+@app.get("/")
+def home():
     return{
-        "access_token": token
-    }
-
-#Token Varify
-def varify_token(token: str = Header(None)):
-    
-    try:
-        payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
-        return payload
-    except:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired Token"
-        )
-    
-#protected Route
-@app.get("/secure")
-def secure_data(user = Depends(varify_token)):
-    return{
-        "message":"Secure Data Accessed",
-        "user":user
+        "message":"CORS ENABLE API"
     }
