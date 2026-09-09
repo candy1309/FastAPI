@@ -1,55 +1,31 @@
-from fastapi import FastAPI,HTTPException,Depends,Header
-from jose import jwt
-from datetime import datetime, timedelta, timezone
+# import requests
+
+# response = requests.get("https://jsonplaceholder.typicode.com/posts/1")
+
+
+# data = response.json()
+# print(data[:2])
+
+from fastapi import FastAPI,HTTPException
+import requests
+
 
 app = FastAPI()
 
-SECRET_KEY = "mysecret"
+#GET ALL data
+@app.get("/posts")
+def get_posts():
+    url = "https://jsonplaceholder.typicode.com/posts"
+    response = requests.get(url)
+    return response.json()
 
-ALGORITHM = "HS256"
+#Get single post
+@app.get("/posts/{post_id}")
+def get_post(post_id:int):
+    url = f"https://jsonplaceholder.typicode.com/posts/{post_id}"
 
-#Create Token
-def create_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
-    to_encode.update({
-        "exp":expire
-    })
-    token = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+    response = requests.get(url)
 
-    return token
-
-#Login API(Token Genrate)
-@app.post("/login")
-def login(username:str,password:str):
-    if username != "admin" or password != "1234":
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid Username and password"
-        )
-    token = create_token({
-        "sub":username
-    })
-    return{
-        "access_token": token
-    }
-
-#Token Varify
-def varify_token(token: str = Header(None)):
-    
-    try:
-        payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
-        return payload
-    except:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired Token"
-        )
-    
-#protected Route
-@app.get("/secure")
-def secure_data(user = Depends(varify_token)):
-    return{
-        "message":"Secure Data Accessed",
-        "user":user
-    }
+    if response.status_code != 200:
+        raise HTTPException(status_code=404, detail="Page not found")
+    return response.json()
