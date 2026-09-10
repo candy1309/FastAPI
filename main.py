@@ -1,55 +1,29 @@
-from fastapi import FastAPI,HTTPException,Depends,Header
-from jose import jwt
-from datetime import datetime, timedelta, timezone
+from fastapi import FastAPI,Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
-SECRET_KEY = "mysecret"
+#Limiter SETUP
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
 
-ALGORITHM = "HS256"
+#Error Handle
+@app.exception_handler(RateLimitExceeded)
+def rate_limit_hander(request: Request, exc: RateLimitExceeded ):
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail":"Too many Requests"
+        }
+    )
 
-#Create Token
-def create_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
-    to_encode.update({
-        "exp":expire
-    })
-    token = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
-
-    return token
-
-#Login API(Token Genrate)
-@app.post("/login")
-def login(username:str,password:str):
-    if username != "admin" or password != "1234":
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid Username and password"
-        )
-    token = create_token({
-        "sub":username
-    })
+#Rate Limiter API
+@app.get("/data")
+@limiter.limit("5/minute")
+def get_data(request: Request):
     return{
-        "access_token": token
-    }
-
-#Token Varify
-def varify_token(token: str = Header(None)):
-    
-    try:
-        payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
-        return payload
-    except:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired Token"
-        )
-    
-#protected Route
-@app.get("/secure")
-def secure_data(user = Depends(varify_token)):
-    return{
-        "message":"Secure Data Accessed",
-        "user":user
+        "message":"Success"
     }
