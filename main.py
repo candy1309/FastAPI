@@ -1,55 +1,46 @@
-from fastapi import FastAPI,HTTPException,Depends,Header
-from jose import jwt
-from datetime import datetime, timedelta, timezone
+from fastapi import FastAPI
+import requests
+from bs4 import BeautifulSoup
+import time
 
 app = FastAPI()
 
-SECRET_KEY = "mysecret"
+#Cache Storage
+cache_data = []
+last_fetch = 0
 
-ALGORITHM = "HS256"
+@app.get("/news")
+def get_news():
+    global cache_data, last_fetch
 
-#Create Token
-def create_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
-    to_encode.update({
-        "exp":expire
-    })
-    token = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+    start = time.time()
 
-    return token
+    if time.time() - last_fetch > 60:
+        print("Fetching Fresh Data")
 
-#Login API(Token Genrate)
-@app.post("/login")
-def login(username:str,password:str):
-    if username != "admin" or password != "1234":
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid Username and password"
-        )
-    token = create_token({
-        "sub":username
-    })
+        url= "https://news.ycombinator.com/"
+
+        response = requests.get(url)
+
+        soup = BeautifulSoup(response.text,"html.parser")
+
+        cache_data = [
+            item.text for item in soup.find_all("span", class_="titleline")
+        ]
+
+
+        last_fetch = time.time()
+
+    else:
+        print("Using catche Data")
+
+    end = time.time()
+
+    time_taken = round(end-start,4)
+
+    print("Time Taken: ", time_taken)
+
     return{
-        "access_token": token
-    }
-
-#Token Varify
-def varify_token(token: str = Header(None)):
-    
-    try:
-        payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
-        return payload
-    except:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired Token"
-        )
-    
-#protected Route
-@app.get("/secure")
-def secure_data(user = Depends(varify_token)):
-    return{
-        "message":"Secure Data Accessed",
-        "user":user
+        "time_taken":time_taken,
+        "data":cache_data[:5]
     }
