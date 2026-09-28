@@ -1,55 +1,55 @@
-from fastapi import FastAPI,HTTPException,Depends,Header
-from jose import jwt
-from datetime import datetime, timedelta, timezone
+# A simple project of books using crud operations
+from fastapi import FastAPI
+from pydantic import BaseModel
 
-app = FastAPI()
+app=FastAPI()
+books=[]
 
-SECRET_KEY = "mysecret"
-
-ALGORITHM = "HS256"
-
-#Create Token
-def create_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
-    to_encode.update({
-        "exp":expire
-    })
-    token = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
-
-    return token
-
-#Login API(Token Genrate)
-@app.post("/login")
-def login(username:str,password:str):
-    if username != "admin" or password != "1234":
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid Username and password"
-        )
-    token = create_token({
-        "sub":username
-    })
+class  Book(BaseModel):
+    id:int
+    price:int
+    author:str
+@app.post("/books")
+def book_entry(book:Book):#creating an entry
+    books.append(book)
     return{
-        "access_token": token
+        "message":"new book added ",
+        "new book":book
+    }
+@app.get("/books") #to take all data into once 
+def books_data():
+    return books
+
+@app.get("/books/{book_id}") #to find a specific book's data by entering id
+def specific_book(book_id:int):
+    for kitaab in books:
+        if kitaab.id==book_id:
+            return kitaab
+    return{
+        "not found"
+    }   
+@app.put("/books/{book_id}")#to update a specific book's data by entering id
+def update_book_data(book_id:int,updated:Book):
+    for index,kitaab in enumerate(books):
+        if kitaab.id==book_id:
+            books[index]=updated
+            return{
+                "message":"data updated",
+                "updated":updated
+            }
+    return{
+        "message":"not found"
     }
 
-#Token Varify
-def varify_token(token: str = Header(None)):
-    
-    try:
-        payload = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
-        return payload
-    except:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired Token"
-        )
-    
-#protected Route
-@app.get("/secure")
-def secure_data(user = Depends(varify_token)):
+@app.delete("/books/{book_id}")#to delete a specific book  by entering id
+def Delete_book(book_id:int):
+    for idx,gyaan in enumerate(books):
+        if gyaan.id==book_id:
+            books.pop(idx)
+            return {
+                "mesagae":"book deleted"
+            }
     return{
-        "message":"Secure Data Accessed",
-        "user":user
+        "not found"
     }
+        
